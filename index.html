@@ -1,0 +1,1563 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ThriftScan — Live eBay Results</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --cream: #F5F0E8; --ink: #1A1A18; --rust: #C4502A;
+    --sage: #7A8C6E; --dust: #B5A898; --paper: #EDE8DC;
+    --gold: #C9A84C; --dark: #111110; --ebay: #E53238;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:var(--cream); color:var(--ink); font-family:'DM Sans',sans-serif; min-height:100vh; overflow-x:hidden; }
+  body::before {
+    content:''; position:fixed; inset:0;
+    background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+    pointer-events:none; z-index:999; opacity:0.4;
+  }
+
+  /* ── HEADER ── */
+  header {
+    padding:1.25rem 3rem; display:flex; align-items:center; justify-content:space-between;
+    border-bottom:2px solid var(--ink); position:sticky; top:0; background:var(--cream); z-index:100;
+  }
+  .logo-area { display:flex; align-items:baseline; gap:0.75rem; }
+  .logo { font-family:'Bebas Neue',sans-serif; font-size:2.2rem; letter-spacing:0.05em; line-height:1; }
+  .logo span { color:var(--rust); }
+  .tagline { font-size:0.7rem; font-weight:300; letter-spacing:0.15em; text-transform:uppercase; color:var(--dust); }
+  nav { display:flex; }
+  .nav-btn {
+    background:none; border:none; font-family:'DM Sans',sans-serif; font-size:0.75rem;
+    font-weight:500; letter-spacing:0.12em; text-transform:uppercase; color:var(--dust);
+    cursor:pointer; padding:0.5rem 1.25rem; border-bottom:2px solid transparent;
+    margin-bottom:-2px; transition:all 0.15s; display:flex; align-items:center; gap:0.4rem;
+  }
+  .nav-btn:hover { color:var(--ink); }
+  .nav-btn.active { color:var(--ink); border-bottom-color:var(--rust); }
+  .ai-badge { background:var(--rust); color:white; font-size:0.5rem; padding:1px 5px; border-radius:2px; letter-spacing:0.05em; font-weight:600; }
+  .live-badge { background:var(--sage); color:white; font-size:0.5rem; padding:1px 5px; border-radius:2px; letter-spacing:0.05em; font-weight:600; }
+  .profile-dot { width:8px; height:8px; background:var(--sage); border-radius:50%; display:none; }
+
+  /* ── PAGES ── */
+  .page { display:none; }
+  .page.active { display:block; }
+  main { max-width:960px; margin:0 auto; padding:3rem 2rem; }
+
+  /* ── HERO ── */
+  .hero-text { font-family:'Bebas Neue',sans-serif; font-size:clamp(2.8rem,7vw,5.5rem); line-height:0.95; margin-bottom:1.75rem; }
+  .hero-text em { font-style:normal; color:var(--rust); display:block; }
+
+  /* ── HOW IT WORKS NOTICE ── */
+  .how-notice {
+    background:var(--dark); color:var(--cream);
+    padding:1rem 1.5rem; margin-bottom:1.75rem;
+    display:flex; align-items:flex-start; gap:1rem;
+    border-left:4px solid var(--sage);
+    animation:fadeUp 0.5s ease;
+  }
+  .how-notice-icon { font-size:1.4rem; flex-shrink:0; margin-top:0.1rem; }
+  .how-notice-text { font-size:0.78rem; line-height:1.65; font-weight:300; }
+  .how-notice-text strong { color:var(--gold); font-weight:500; }
+  .how-notice-text a { color:var(--gold); text-decoration:underline; }
+
+  /* ── PROFILE BANNER ── */
+  .profile-banner { display:none; background:var(--ink); color:var(--cream); padding:0.6rem 1.25rem; font-size:0.72rem; letter-spacing:0.05em; margin-bottom:1.5rem; align-items:center; gap:0.75rem; flex-wrap:wrap; }
+  .profile-banner.show { display:flex; }
+  .banner-pills { display:flex; gap:0.4rem; flex-wrap:wrap; }
+  .banner-pill { background:rgba(255,255,255,0.12); padding:1px 8px; font-size:0.65rem; border-radius:20px; }
+
+  /* ── SEARCH AREA ── */
+  .search-area { background:var(--paper); border:2px solid var(--ink); padding:2rem; margin-bottom:1.5rem; position:relative; }
+  .search-area::after { content:''; position:absolute; bottom:-6px; right:-6px; width:100%; height:100%; border:2px solid var(--rust); z-index:-1; }
+  .search-label { font-size:0.68rem; letter-spacing:0.2em; text-transform:uppercase; font-weight:500; color:var(--dust); margin-bottom:0.6rem; display:block; }
+  .input-row { display:flex; gap:0.75rem; align-items:stretch; }
+  .keyword-input { flex:1; background:var(--cream); border:1.5px solid var(--ink); padding:0.9rem 1.2rem; font-family:'DM Sans',sans-serif; font-size:1rem; color:var(--ink); outline:none; transition:border-color 0.2s; }
+  .keyword-input::placeholder { color:var(--dust); }
+  .keyword-input:focus { border-color:var(--rust); }
+  .search-btn { background:var(--ink); color:var(--cream); border:none; padding:0 2rem; font-family:'Bebas Neue',sans-serif; font-size:1.2rem; letter-spacing:0.1em; cursor:pointer; transition:background 0.2s; white-space:nowrap; }
+  .search-btn:hover { background:var(--rust); }
+  .search-btn:disabled { background:var(--dust); cursor:not-allowed; }
+
+  /* ── FILTERS ── */
+  .filter-bar { display:flex; flex-wrap:wrap; gap:0.75rem; align-items:center; margin-bottom:1.5rem; padding:0.9rem 1.25rem; background:var(--paper); border:1.5px solid var(--ink); }
+  .filter-label { font-size:0.68rem; letter-spacing:0.15em; text-transform:uppercase; color:var(--dust); font-weight:500; }
+  .filter-select { background:var(--cream); border:1.5px solid var(--ink); padding:0.3rem 0.6rem; font-family:'DM Sans',sans-serif; font-size:0.78rem; color:var(--ink); outline:none; appearance:none; cursor:pointer; }
+  .filter-select:focus { border-color:var(--rust); }
+
+  /* ── LOADING ── */
+  .loading-block { display:none; padding:3rem 0; text-align:center; }
+  .loading-block.show { display:block; }
+  .loading-dots { display:flex; justify-content:center; gap:0.5rem; margin-bottom:1rem; }
+  .dot { width:10px; height:10px; background:var(--ink); border-radius:50%; animation:bounce 0.8s infinite ease-in-out; }
+  .dot:nth-child(2) { animation-delay:0.15s; background:var(--rust); }
+  .dot:nth-child(3) { animation-delay:0.3s; }
+  @keyframes bounce { 0%,80%,100%{transform:translateY(0)} 40%{transform:translateY(-10px)} }
+  .loading-text { font-size:0.75rem; letter-spacing:0.2em; text-transform:uppercase; color:var(--dust); }
+  .loading-sub { font-size:0.68rem; color:var(--dust); margin-top:0.4rem; font-style:italic; }
+
+  /* ── RESULTS ── */
+  #results-section { display:none; }
+  .results-header { display:flex; align-items:flex-end; justify-content:space-between; border-bottom:2px solid var(--ink); padding-bottom:0.75rem; margin-bottom:1.5rem; }
+  .results-title { font-family:'Bebas Neue',sans-serif; font-size:1.8rem; letter-spacing:0.05em; }
+  .results-meta { text-align:right; }
+  .results-count { font-size:0.75rem; letter-spacing:0.1em; text-transform:uppercase; color:var(--dust); }
+  .results-source { font-size:0.65rem; color:var(--sage); margin-top:0.2rem; letter-spacing:0.06em; }
+
+  .results-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(210px,1fr)); gap:1.25rem; }
+
+  .result-card {
+    background:var(--paper); border:1.5px solid var(--ink);
+    cursor:pointer; transition:transform 0.15s; position:relative;
+    animation:fadeUp 0.4s ease both; text-decoration:none; color:inherit; display:block;
+  }
+  .result-card:hover { transform:translate(-3px,-3px); box-shadow:3px 3px 0 var(--rust); }
+  @keyframes fadeUp { from{opacity:0;transform:translateY(16px)} to{opacity:1;transform:translateY(0)} }
+
+  .card-badge { position:absolute; top:8px; left:8px; font-size:0.58rem; font-weight:600; letter-spacing:0.1em; text-transform:uppercase; padding:2px 7px; z-index:1; }
+  .card-badge.live { background:var(--ebay); color:white; }
+  .card-badge.demo { background:var(--ink); color:var(--cream); }
+
+  .card-img-wrap { width:100%; aspect-ratio:1; overflow:hidden; border-bottom:1.5px solid var(--ink); background:var(--cream); position:relative; }
+  .card-img { width:100%; height:100%; object-fit:cover; display:block; transition:transform 0.3s; }
+  .result-card:hover .card-img { transform:scale(1.04); }
+  .card-img-placeholder { width:100%; height:100%; display:flex; align-items:center; justify-content:center; font-size:2.5rem; }
+
+  .card-body { padding:0.75rem; }
+  .card-title { font-size:0.82rem; font-weight:500; line-height:1.3; margin-bottom:0.4rem; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+  .card-price { font-family:'Bebas Neue',sans-serif; font-size:1.35rem; color:var(--rust); letter-spacing:0.05em; }
+  .card-condition { font-size:0.65rem; color:var(--dust); text-transform:uppercase; letter-spacing:0.1em; margin-top:0.15rem; }
+  .card-cta { padding:0 0.75rem 0.75rem; font-size:0.65rem; color:var(--dust); letter-spacing:0.08em; text-transform:uppercase; }
+  .result-card:hover .card-cta { color:var(--rust); }
+
+  /* ── OUTFIT PAGE ── */
+  .occasion-hints { display:flex; flex-wrap:wrap; gap:0.4rem; margin-top:0.75rem; }
+  .hint-chip { background:var(--cream); border:1px solid var(--dust); padding:0.25rem 0.75rem; font-size:0.7rem; color:var(--dust); cursor:pointer; transition:all 0.15s; }
+  .hint-chip:hover { border-color:var(--rust); color:var(--rust); }
+
+  .divider-row { display:flex; align-items:center; gap:1rem; margin:1.5rem 0 1rem; }
+  .divider-line { flex:1; height:1px; background:var(--dust); }
+  .divider-text { font-size:0.7rem; letter-spacing:0.15em; text-transform:uppercase; color:var(--dust); white-space:nowrap; }
+
+  .image-drop-zone { border:2px dashed var(--dust); background:var(--cream); padding:2rem; text-align:center; cursor:pointer; transition:all 0.2s; position:relative; }
+  .image-drop-zone:hover,.image-drop-zone.drag-over { border-color:var(--rust); background:#f0ebe0; }
+  .image-drop-zone input { position:absolute; inset:0; opacity:0; cursor:pointer; width:100%; height:100%; }
+  .drop-icon { font-size:2rem; margin-bottom:0.4rem; display:block; }
+  .drop-title { font-family:'Bebas Neue',sans-serif; font-size:1.3rem; letter-spacing:0.08em; color:var(--ink); margin-bottom:0.25rem; }
+  .drop-subtitle { font-size:0.75rem; color:var(--dust); font-weight:300; }
+  .drop-subtitle strong { color:var(--ink); font-weight:500; }
+
+  .demo-images { margin-top:1rem; display:flex; gap:0.5rem; flex-wrap:wrap; align-items:center; }
+  .demo-label { font-size:0.65rem; color:var(--dust); letter-spacing:0.12em; text-transform:uppercase; }
+  .demo-img-btn { background:var(--paper); border:1.5px solid var(--ink); padding:0.3rem 0.75rem; font-size:0.72rem; cursor:pointer; transition:all 0.15s; font-family:'DM Sans',sans-serif; }
+  .demo-img-btn:hover { background:var(--ink); color:var(--cream); }
+
+  .image-analysis-panel { display:none; border:1.5px solid var(--ink); overflow:hidden; margin-top:1rem; }
+  .image-analysis-panel.show { display:block; }
+  .image-preview-row { display:grid; grid-template-columns:150px 1fr; }
+  .preview-thumb { position:relative; overflow:hidden; border-right:1.5px solid var(--ink); min-height:120px; }
+  .preview-thumb img { width:100%; height:100%; object-fit:cover; display:block; }
+  .change-photo { position:absolute; bottom:0; left:0; right:0; background:rgba(0,0,0,0.6); color:white; font-size:0.62rem; letter-spacing:0.1em; text-transform:uppercase; padding:0.4rem; text-align:center; cursor:pointer; opacity:0; transition:opacity 0.2s; }
+  .preview-thumb:hover .change-photo { opacity:1; }
+  .analysis-content { padding:1.25rem; background:var(--paper); }
+  .analyzing-state,.analysis-result { display:none; }
+  .analyzing-state.show,.analysis-result.show { display:block; }
+  .analyzing-dots { display:flex; gap:0.4rem; margin-bottom:0.5rem; }
+  .a-dot { width:8px; height:8px; background:var(--rust); border-radius:50%; animation:bounce 0.8s infinite ease-in-out; }
+  .a-dot:nth-child(2) { animation-delay:0.15s; background:var(--ink); }
+  .a-dot:nth-child(3) { animation-delay:0.3s; }
+  .analyzing-label { font-size:0.7rem; letter-spacing:0.15em; text-transform:uppercase; color:var(--dust); }
+  .analysis-result-label { font-size:0.62rem; letter-spacing:0.18em; text-transform:uppercase; color:var(--dust); margin-bottom:0.5rem; }
+  .detected-tags { display:flex; flex-wrap:wrap; gap:0.4rem; margin-bottom:0.75rem; }
+  .detected-tag { padding:0.25rem 0.75rem; font-size:0.72rem; font-weight:500; border:1.5px solid var(--ink); background:var(--cream); animation:popIn 0.25s ease both; }
+  .detected-tag.primary { background:var(--ink); color:var(--cream); }
+  .detected-tag.season { background:var(--sage); color:white; border-color:var(--sage); }
+  .detected-tag.vibe { background:var(--rust); color:white; border-color:var(--rust); }
+  @keyframes popIn { from{transform:scale(0.8);opacity:0} to{transform:scale(1);opacity:1} }
+  .generated-occasion { background:white; border:1.5px solid var(--ink); padding:0.6rem 0.9rem; margin-bottom:0.75rem; font-size:0.88rem; font-style:italic; color:var(--ink); line-height:1.4; }
+  .analysis-actions { display:flex; gap:0.5rem; align-items:center; flex-wrap:wrap; }
+  .use-occasion-btn { background:var(--rust); color:var(--cream); border:none; padding:0.55rem 1.25rem; font-family:'Bebas Neue',sans-serif; font-size:1rem; letter-spacing:0.08em; cursor:pointer; transition:background 0.15s; }
+  .use-occasion-btn:hover { background:var(--ink); }
+  .edit-occasion-btn { background:none; border:1.5px solid var(--ink); color:var(--ink); padding:0.5rem 1rem; font-size:0.72rem; letter-spacing:0.08em; text-transform:uppercase; cursor:pointer; transition:all 0.15s; font-family:'DM Sans',sans-serif; }
+  .edit-occasion-btn:hover { border-color:var(--rust); color:var(--rust); }
+  .remove-photo { background:none; border:none; color:var(--dust); font-size:0.7rem; letter-spacing:0.1em; text-transform:uppercase; cursor:pointer; padding:0.5rem; transition:color 0.15s; font-family:'DM Sans',sans-serif; }
+  .remove-photo:hover { color:var(--rust); }
+  .edit-occasion-field { display:none; margin-top:0.75rem; }
+  .edit-occasion-field.show { display:flex; gap:0.5rem; }
+  .edit-occasion-input { flex:1; background:white; border:1.5px solid var(--ink); padding:0.5rem 0.75rem; font-family:'DM Sans',sans-serif; font-size:0.85rem; color:var(--ink); outline:none; }
+  .confirm-edit-btn { background:var(--ink); color:var(--cream); border:none; padding:0 1rem; font-family:'Bebas Neue',sans-serif; font-size:0.95rem; cursor:pointer; }
+
+  /* ── OUTFIT OUTPUT ── */
+  #outfit-section { display:none; }
+  .outfit-header { display:flex; align-items:flex-end; justify-content:space-between; border-bottom:2px solid var(--ink); padding-bottom:0.75rem; margin-bottom:0.5rem; }
+  .outfit-title-area .occasion-label { font-size:0.7rem; letter-spacing:0.12em; text-transform:uppercase; color:var(--dust); margin-bottom:0.25rem; }
+  .outfit-title-area .main-title { font-family:'Bebas Neue',sans-serif; font-size:2rem; letter-spacing:0.05em; }
+  .ai-reasoning { background:var(--dark); color:var(--cream); padding:1rem 1.5rem; margin-bottom:1.75rem; font-size:0.82rem; line-height:1.65; font-weight:300; border-left:3px solid var(--rust); animation:fadeUp 0.5s ease; }
+  .ai-reasoning strong { color:var(--gold); font-weight:500; }
+
+  .outfit-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr)); gap:1.25rem; margin-bottom:2rem; }
+  .outfit-piece { background:var(--paper); border:1.5px solid var(--ink); position:relative; animation:fadeUp 0.4s ease both; transition:transform 0.15s; }
+  .outfit-piece:hover { transform:translate(-3px,-3px); box-shadow:3px 3px 0 var(--rust); }
+  .piece-category { background:var(--rust); color:var(--cream); font-size:0.6rem; font-weight:500; letter-spacing:0.12em; text-transform:uppercase; padding:3px 10px; display:inline-block; margin:0.75rem 0 0 0.75rem; }
+  .piece-emoji { font-size:3rem; text-align:center; padding:1.25rem 0; border-bottom:1.5px solid var(--ink); display:block; background:var(--cream); }
+  .piece-body { padding:0.75rem; }
+  .piece-search-term { font-size:0.72rem; color:var(--dust); margin-bottom:0.35rem; font-style:italic; }
+  .piece-description { font-size:0.85rem; font-weight:500; line-height:1.35; margin-bottom:0.5rem; }
+  .piece-why { font-size:0.7rem; color:var(--dust); line-height:1.45; font-weight:300; margin-bottom:0.75rem; }
+
+  .piece-ebay-link {
+    display:flex; align-items:center; justify-content:space-between;
+    background:var(--ebay); color:white; padding:0.6rem 0.75rem;
+    text-decoration:none; font-size:0.72rem; font-weight:500; letter-spacing:0.05em;
+    border-top:1.5px solid var(--ink); transition:opacity 0.15s;
+  }
+  .piece-ebay-link:hover { opacity:0.88; }
+  .piece-ebay-link .arrow { font-size:0.9rem; }
+
+  .reshuffle-btn { width:100%; background:none; border:none; border-top:1.5px solid var(--ink); padding:0.5rem; font-size:0.68rem; letter-spacing:0.12em; text-transform:uppercase; color:var(--dust); cursor:pointer; transition:all 0.15s; font-family:'DM Sans',sans-serif; }
+  .reshuffle-btn:hover { background:var(--ink); color:var(--cream); }
+
+  .outfit-footer { background:var(--ink); color:var(--cream); padding:1.25rem 1.75rem; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:1rem; }
+  .total-label { font-size:0.7rem; letter-spacing:0.15em; text-transform:uppercase; color:var(--dust); margin-bottom:0.2rem; }
+  .total-price { font-family:'Bebas Neue',sans-serif; font-size:2.5rem; color:var(--gold); letter-spacing:0.05em; line-height:1; }
+  .total-vs { font-size:0.72rem; color:var(--dust); margin-top:0.2rem; }
+  .outfit-actions { display:flex; gap:0.75rem; }
+  .action-btn { background:none; border:1.5px solid rgba(255,255,255,0.2); color:var(--cream); padding:0.6rem 1.25rem; font-family:'DM Sans',sans-serif; font-size:0.75rem; font-weight:500; letter-spacing:0.08em; text-transform:uppercase; cursor:pointer; transition:all 0.2s; }
+  .action-btn:hover { background:var(--rust); border-color:var(--rust); }
+  .action-btn.primary { background:var(--ebay); border-color:var(--ebay); }
+
+  /* ── PROFILE PAGE ── */
+  .profile-page-header { display:flex; align-items:flex-end; justify-content:space-between; margin-bottom:2rem; border-bottom:2px solid var(--ink); padding-bottom:1rem; }
+  .profile-page-title { font-family:'Bebas Neue',sans-serif; font-size:3.2rem; line-height:1; }
+  .profile-page-title span { color:var(--rust); }
+  .profile-subtitle { font-size:0.72rem; letter-spacing:0.1em; text-transform:uppercase; color:var(--dust); margin-bottom:0.25rem; }
+  .save-profile-btn { background:var(--rust); color:var(--cream); border:none; padding:0.75rem 2rem; font-family:'Bebas Neue',sans-serif; font-size:1.1rem; letter-spacing:0.1em; cursor:pointer; transition:background 0.2s; }
+  .save-profile-btn:hover { background:var(--ink); }
+  .completion-bar-wrap { background:var(--paper); border:1.5px solid var(--ink); padding:0.9rem 1.5rem; margin-bottom:1.5rem; display:flex; align-items:center; gap:1rem; }
+  .completion-label { font-size:0.7rem; letter-spacing:0.12em; text-transform:uppercase; color:var(--dust); white-space:nowrap; }
+  .completion-track { flex:1; height:4px; background:var(--cream); border:1px solid var(--dust); }
+  .completion-fill { height:100%; background:var(--sage); transition:width 0.4s ease; }
+  .completion-pct { font-family:'Bebas Neue',sans-serif; font-size:1.1rem; color:var(--sage); min-width:3rem; text-align:right; }
+  .profile-grid { display:grid; grid-template-columns:1fr 1fr; gap:1.5rem; }
+  @media(max-width:620px){.profile-grid{grid-template-columns:1fr}}
+  .profile-section { background:var(--paper); border:1.5px solid var(--ink); padding:1.5rem; }
+  .section-label { font-family:'Bebas Neue',sans-serif; font-size:1.2rem; letter-spacing:0.08em; margin-bottom:1rem; }
+  .size-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:0.75rem; }
+  .size-field label { display:block; font-size:0.65rem; letter-spacing:0.15em; text-transform:uppercase; color:var(--dust); margin-bottom:0.3rem; }
+  .size-field input,.size-field select { width:100%; background:var(--cream); border:1.5px solid var(--ink); padding:0.5rem 0.6rem; font-family:'DM Sans',sans-serif; font-size:0.85rem; color:var(--ink); outline:none; appearance:none; }
+  .size-field input:focus,.size-field select:focus { border-color:var(--rust); }
+  .size-field input::placeholder { color:var(--dust); }
+  .brand-input-row { display:flex; gap:0.5rem; margin-bottom:0.75rem; }
+  .brand-input { flex:1; background:var(--cream); border:1.5px solid var(--ink); padding:0.5rem 0.75rem; font-family:'DM Sans',sans-serif; font-size:0.85rem; color:var(--ink); outline:none; }
+  .brand-input:focus { border-color:var(--rust); }
+  .brand-input::placeholder { color:var(--dust); }
+  .add-brand-btn { background:var(--ink); color:var(--cream); border:none; padding:0 1rem; font-family:'Bebas Neue',sans-serif; font-size:1rem; letter-spacing:0.1em; cursor:pointer; }
+  .add-brand-btn:hover { background:var(--rust); }
+  .brand-tags { display:flex; flex-wrap:wrap; gap:0.4rem; min-height:2rem; }
+  .brand-tag { display:flex; align-items:center; gap:0.35rem; padding:0.25rem 0.6rem; font-size:0.72rem; font-weight:500; border:1.5px solid var(--ink); animation:popIn 0.2s ease; }
+  .brand-tag.love { background:var(--sage); color:white; border-color:var(--sage); }
+  .brand-tag.avoid { background:var(--cream); color:var(--rust); border-color:var(--rust); }
+  .brand-tag button { background:none; border:none; cursor:pointer; color:inherit; font-size:0.7rem; opacity:0.7; padding:0; }
+  .brand-tag button:hover { opacity:1; }
+  .aesthetic-grid { display:flex; flex-wrap:wrap; gap:0.5rem; }
+  .aesthetic-chip { background:var(--cream); border:1.5px solid var(--ink); padding:0.4rem 1rem; font-size:0.78rem; font-weight:500; cursor:pointer; transition:all 0.15s; user-select:none; }
+  .aesthetic-chip:hover { border-color:var(--rust); }
+  .aesthetic-chip.selected { background:var(--ink); color:var(--cream); }
+  .aesthetic-limit { font-size:0.68rem; color:var(--dust); margin-top:0.75rem; }
+
+  /* API KEY NOTICE */
+  .api-notice { background:#fffbf0; border:1.5px solid var(--gold); padding:0.9rem 1.25rem; margin-bottom:1.5rem; font-size:0.78rem; line-height:1.6; }
+  .api-notice strong { color:var(--rust); }
+  .api-key-row { display:flex; gap:0.5rem; margin-top:0.6rem; }
+  .api-key-input { flex:1; background:white; border:1.5px solid var(--ink); padding:0.45rem 0.75rem; font-family:'DM Sans',sans-serif; font-size:0.82rem; color:var(--ink); outline:none; }
+  .api-key-input:focus { border-color:var(--rust); }
+  .api-key-save { background:var(--ink); color:var(--cream); border:none; padding:0 1rem; font-family:'Bebas Neue',sans-serif; font-size:0.95rem; letter-spacing:0.08em; cursor:pointer; }
+  .api-key-save:hover { background:var(--rust); }
+
+  .toast { position:fixed; bottom:2rem; left:50%; transform:translateX(-50%) translateY(80px); background:var(--ink); color:var(--cream); padding:0.75rem 2rem; font-size:0.8rem; letter-spacing:0.1em; text-transform:uppercase; z-index:1000; transition:transform 0.3s ease; border-left:4px solid var(--sage); }
+  .toast.show { transform:translateX(-50%) translateY(0); }
+  /* ── CREDENTIALS PANEL ── */
+  .settings-panel { background:var(--paper); border:2px solid var(--ink); margin-bottom:2rem; position:relative; overflow:hidden; }
+  .settings-panel::after { content:''; position:absolute; bottom:-6px; right:-6px; width:100%; height:100%; border:2px solid var(--rust); z-index:-1; }
+  .ebay-connected-bar { display:none; background:var(--sage); color:white; padding:0.5rem 1.5rem; font-size:0.72rem; letter-spacing:0.08em; align-items:center; gap:0.75rem; }
+  .ebay-connected-bar.show { display:flex; }
+  .settings-header { padding:1rem 1.5rem; display:flex; align-items:center; justify-content:space-between; border-bottom:1.5px solid transparent; cursor:pointer; user-select:none; }
+  .settings-header:hover { background:rgba(0,0,0,0.02); }
+  .settings-body.open ~ * .settings-header, .settings-body.open + .settings-header { border-bottom-color:var(--ink); }
+  .settings-title { font-family:'Bebas Neue',sans-serif; font-size:1.1rem; letter-spacing:0.08em; display:flex; align-items:center; gap:0.75rem; }
+  .settings-status { font-size:0.7rem; letter-spacing:0.1em; text-transform:uppercase; font-family:'DM Sans',sans-serif; font-weight:400; display:flex; align-items:center; gap:0.4rem; }
+  .status-dot { width:8px; height:8px; border-radius:50%; background:var(--dust); display:inline-block; flex-shrink:0; }
+  .status-dot.connected { background:var(--sage); }
+  .settings-toggle { font-size:0.7rem; color:var(--dust); letter-spacing:0.1em; text-transform:uppercase; }
+  .settings-body { padding:1.5rem; display:none; border-top:1.5px solid var(--ink); }
+  .settings-body.open { display:block; }
+  .cred-grid { display:grid; grid-template-columns:1fr 1fr; gap:1rem; margin-bottom:1rem; }
+  @media(max-width:580px){.cred-grid{grid-template-columns:1fr}}
+  .cred-field label { display:block; font-size:0.65rem; letter-spacing:0.18em; text-transform:uppercase; color:var(--dust); margin-bottom:0.4rem; }
+  .cred-input { width:100%; background:var(--cream); border:1.5px solid var(--ink); padding:0.6rem 0.9rem; font-family:monospace; font-size:0.82rem; color:var(--ink); outline:none; transition:border-color 0.2s; }
+  .cred-input:focus { border-color:var(--rust); }
+  .cred-input::placeholder { color:var(--dust); font-family:'DM Sans',sans-serif; }
+  .cred-actions { display:flex; gap:0.75rem; align-items:center; flex-wrap:wrap; margin-bottom:0.75rem; }
+  .connect-ebay-btn { background:var(--ebay); color:white; border:none; padding:0.65rem 1.75rem; font-family:'Bebas Neue',sans-serif; font-size:1.1rem; letter-spacing:0.1em; cursor:pointer; transition:background 0.15s; }
+  .connect-ebay-btn:hover { background:#c02020; }
+  .disconnect-btn { background:none; border:1.5px solid var(--dust); color:var(--dust); padding:0.6rem 1rem; font-size:0.72rem; letter-spacing:0.1em; text-transform:uppercase; cursor:pointer; transition:all 0.15s; font-family:'DM Sans',sans-serif; }
+  .disconnect-btn:hover { border-color:var(--rust); color:var(--rust); }
+  .cred-note { font-size:0.72rem; color:var(--dust); line-height:1.55; }
+  .cred-note strong { color:var(--ink); }
+
+  /* ── STYLE PHOTOS ── */
+  .style-photos-section { background:var(--paper); border:1.5px solid var(--ink); padding:1.5rem; grid-column:1/-1; }
+  .style-photos-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(100px,1fr)); gap:0.75rem; margin-top:1rem; min-height:80px; }
+  .style-photo-item { position:relative; aspect-ratio:1; border:1.5px solid var(--ink); overflow:hidden; background:var(--cream); }
+  .style-photo-item img { width:100%; height:100%; object-fit:cover; display:block; }
+  .style-photo-remove { position:absolute; top:4px; right:4px; background:var(--rust); color:white; border:none; width:20px; height:20px; border-radius:50%; font-size:0.65rem; cursor:pointer; display:flex; align-items:center; justify-content:center; opacity:0; transition:opacity 0.15s; }
+  .style-photo-item:hover .style-photo-remove { opacity:1; }
+  .style-photo-add { aspect-ratio:1; border:2px dashed var(--dust); background:var(--cream); display:flex; flex-direction:column; align-items:center; justify-content:center; cursor:pointer; transition:all 0.15s; position:relative; }
+  .style-photo-add:hover { border-color:var(--rust); }
+  .style-photo-add input { position:absolute; inset:0; opacity:0; cursor:pointer; width:100%; height:100%; }
+  .style-photo-add-icon { font-size:1.5rem; margin-bottom:0.25rem; }
+  .style-photo-add-label { font-size:0.62rem; letter-spacing:0.1em; text-transform:uppercase; color:var(--dust); text-align:center; }
+  .analyze-photos-btn { background:var(--ink); color:var(--cream); border:none; padding:0.65rem 1.5rem; font-family:'Bebas Neue',sans-serif; font-size:1.05rem; letter-spacing:0.1em; cursor:pointer; transition:background 0.15s; margin-top:1rem; display:inline-block; }
+  .analyze-photos-btn:hover { background:var(--rust); }
+  .analyze-photos-btn:disabled { background:var(--dust); cursor:not-allowed; }
+  .photo-count-label { font-size:0.7rem; color:var(--dust); margin-top:0.5rem; display:inline-block; margin-left:1rem; }
+
+  /* ── STYLE DNA MODAL ── */
+  .modal-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:500; align-items:center; justify-content:center; padding:2rem; }
+  .modal-overlay.show { display:flex; }
+  .modal { background:var(--cream); border:2px solid var(--ink); max-width:580px; width:100%; max-height:80vh; overflow-y:auto; position:relative; animation:fadeUp 0.3s ease; }
+  .modal::after { content:''; position:absolute; bottom:-6px; right:-6px; width:100%; height:100%; border:2px solid var(--rust); z-index:-1; }
+  .modal-header { background:var(--ink); color:var(--cream); padding:1.25rem 1.5rem; display:flex; align-items:center; justify-content:space-between; }
+  .modal-title { font-family:'Bebas Neue',sans-serif; font-size:1.5rem; letter-spacing:0.08em; }
+  .modal-close { background:none; border:none; color:var(--cream); font-size:1.2rem; cursor:pointer; opacity:0.7; }
+  .modal-close:hover { opacity:1; }
+  .modal-body { padding:1.5rem; }
+  .dna-section { margin-bottom:1.25rem; }
+  .dna-label { font-size:0.65rem; letter-spacing:0.18em; text-transform:uppercase; color:var(--dust); margin-bottom:0.5rem; }
+  .dna-tags { display:flex; flex-wrap:wrap; gap:0.4rem; margin-bottom:0.5rem; }
+  .dna-tag { padding:0.25rem 0.75rem; font-size:0.75rem; font-weight:500; border:1.5px solid var(--ink); background:var(--paper); animation:popIn 0.2s ease both; cursor:pointer; transition:all 0.15s; }
+  .dna-tag:hover { background:var(--rust); color:white; border-color:var(--rust); }
+  .dna-summary-text { font-size:0.82rem; line-height:1.65; color:var(--ink); background:var(--paper); padding:0.9rem 1.1rem; border-left:3px solid var(--rust); font-style:italic; }
+  .modal-note { font-size:0.72rem; color:var(--dust); margin-top:0.75rem; line-height:1.5; }
+  .modal-actions { display:flex; gap:0.75rem; padding:1rem 1.5rem; border-top:1.5px solid var(--ink); }
+  .approve-btn { background:var(--sage); color:white; border:none; padding:0.65rem 1.5rem; font-family:'Bebas Neue',sans-serif; font-size:1.1rem; letter-spacing:0.1em; cursor:pointer; flex:1; transition:background 0.15s; }
+  .approve-btn:hover { background:var(--ink); }
+  .discard-btn { background:none; border:1.5px solid var(--dust); color:var(--dust); padding:0.65rem 1rem; font-size:0.75rem; letter-spacing:0.08em; text-transform:uppercase; cursor:pointer; transition:all 0.15s; font-family:'DM Sans',sans-serif; }
+  .discard-btn:hover { border-color:var(--rust); color:var(--rust); }
+
+  /* ── BRAND DROPDOWN ── */
+  .brand-search-wrap { position:relative; margin-bottom:0.5rem; }
+  .brand-search-input { width:100%; background:var(--cream); border:1.5px solid var(--ink); padding:0.5rem 0.75rem; font-family:'DM Sans',sans-serif; font-size:0.85rem; color:var(--ink); outline:none; }
+  .brand-search-input:focus { border-color:var(--rust); }
+  .brand-dropdown { display:none; position:absolute; top:100%; left:0; right:0; background:white; border:1.5px solid var(--ink); border-top:none; max-height:180px; overflow-y:auto; z-index:50; box-shadow:3px 3px 0 rgba(0,0,0,0.1); }
+  .brand-dropdown.show { display:block; }
+  .brand-option { padding:0.45rem 0.75rem; font-size:0.82rem; cursor:pointer; transition:background 0.1s; }
+  .brand-option:hover { background:var(--paper); color:var(--rust); }
+  .brand-option.no-results { color:var(--dust); font-style:italic; cursor:default; }
+
+  /* ── PIECE LISTINGS ── */
+  .piece-listings { border-top:1px solid var(--dust); margin-top:0.75rem; padding-top:0.5rem; }
+  .piece-listing-item { display:flex; align-items:center; gap:0.5rem; padding:0.4rem 0; border-bottom:1px dashed rgba(0,0,0,0.07); text-decoration:none; color:inherit; transition:background 0.1s; }
+  .piece-listing-item:last-child { border-bottom:none; }
+  .piece-listing-item:hover { background:rgba(196,80,42,0.05); }
+  .listing-thumb { width:38px; height:38px; object-fit:cover; border:1px solid var(--dust); flex-shrink:0; }
+  .listing-thumb-placeholder { width:38px; height:38px; background:var(--cream); border:1px solid var(--dust); flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:1.1rem; }
+  .listing-info { flex:1; min-width:0; }
+  .listing-title { font-size:0.68rem; font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .listing-cond { font-size:0.6rem; color:var(--dust); }
+  .listing-price { font-family:'Bebas Neue',sans-serif; font-size:1rem; color:var(--rust); flex-shrink:0; }
+  .listing-loading { font-size:0.7rem; color:var(--dust); font-style:italic; padding:0.5rem 0; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo-area">
+    <div class="logo">Thrift<span>Scan</span></div>
+    <div class="tagline">Live eBay + AI Curation</div>
+  </div>
+  <nav>
+    <button class="nav-btn active" onclick="showPage('search',this)">
+      Search <span class="live-badge">LIVE</span>
+    </button>
+    <button class="nav-btn" onclick="showPage('outfit',this)">
+      Outfit Curator <span class="ai-badge">AI</span>
+    </button>
+    <button class="nav-btn" onclick="showPage('profile',this)">
+      My Profile <span class="profile-dot" id="profile-dot"></span>
+    </button>
+  </nav>
+</header>
+
+<!-- ══ SEARCH PAGE ══ -->
+<div class="page active" id="page-search">
+  <main>
+    <div class="hero-text">Real listings.<em>Inside the app.</em></div>
+
+    <!-- eBay credentials panel -->
+    <div class="settings-panel" id="settings-panel">
+      <div class="ebay-connected-bar" id="ebay-connected-bar">
+        <span>✓ eBay connected — live listings active</span>
+        <span style="margin-left:auto;font-size:0.65rem;opacity:0.7" id="ebay-app-id-display"></span>
+      </div>
+      <div class="settings-header" onclick="toggleSettings()">
+        <div class="settings-title">
+          🛒 eBay API Credentials
+          <span class="settings-status">
+            <span class="status-dot" id="status-dot"></span>
+            <span id="status-text">Not connected</span>
+          </span>
+        </div>
+        <span class="settings-toggle" id="settings-toggle">▾ Configure</span>
+      </div>
+      <div class="settings-body" id="settings-body">
+        <div class="cred-grid">
+          <div class="cred-field">
+            <label>App ID (Client ID)</label>
+            <input class="cred-input" id="ebay-client-id" type="text" placeholder="YourApp-PRD-..." autocomplete="off" />
+          </div>
+          <div class="cred-field">
+            <label>Cert ID (Client Secret)</label>
+            <input class="cred-input" id="ebay-client-secret" type="password" placeholder="PRD-..." autocomplete="off" />
+          </div>
+        </div>
+        <div class="cred-actions">
+          <button class="connect-ebay-btn" onclick="connectEbay()">Connect eBay</button>
+          <button class="disconnect-btn" onclick="disconnectEbay()">Disconnect</button>
+        </div>
+        <div class="cred-note">
+          🔒 <strong>Your keys never leave your browser.</strong> They are sent directly to your own Vercel proxy — never stored on any third-party server. Find your keys at <strong>developer.ebay.com → Application Keys → Production row</strong>.
+        </div>
+      </div>
+    </div>
+
+    <div class="profile-banner" id="search-banner">
+      ✦ <span>Profile active: </span>
+      <div class="banner-pills" id="search-banner-pills"></div>
+    </div>
+
+    <div class="search-area">
+      <span class="search-label">Search any item — real listings appear here</span>
+      <div class="input-row">
+        <input class="keyword-input" id="keyword-input" type="text"
+          placeholder='"vintage Levi jacket size M" or "Nike Air Max 90"'
+          onkeydown="if(event.key==='Enter') runSearch()" />
+        <button class="search-btn" id="search-btn" onclick="runSearch()">Search</button>
+      </div>
+    </div>
+
+    <div class="filter-bar">
+      <span class="filter-label">Condition:</span>
+      <select class="filter-select" id="filter-condition">
+        <option value="">Any</option>
+        <option value="3000">Used</option>
+        <option value="1000">New</option>
+        <option value="2000">Refurbished</option>
+      </select>
+      <span class="filter-label" style="margin-left:0.5rem">Sort:</span>
+      <select class="filter-select" id="filter-sort">
+        <option value="BestMatch">Best Match</option>
+        <option value="PricePlusShippingLowest">Price: Low → High</option>
+        <option value="PricePlusShippingHighest">Price: High → Low</option>
+        <option value="NewlyListed">Newly Listed</option>
+      </select>
+      <span class="filter-label" style="margin-left:0.5rem">Max Price:</span>
+      <select class="filter-select" id="filter-price">
+        <option value="">Any</option>
+        <option value="25">Under $25</option>
+        <option value="50">Under $50</option>
+        <option value="100">Under $100</option>
+        <option value="200">Under $200</option>
+      </select>
+    </div>
+
+    <div class="loading-block" id="loading-search">
+      <div class="loading-dots"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
+      <div class="loading-text" id="loading-search-text">Searching eBay...</div>
+      <div class="loading-sub">Fetching live listings via your proxy</div>
+    </div>
+
+    <div id="results-section">
+      <div class="results-header">
+        <div class="results-title" id="results-title">Results</div>
+        <div class="results-meta">
+          <div class="results-count" id="results-count"></div>
+          <div class="results-source" id="results-source"></div>
+        </div>
+      </div>
+      <div class="results-grid" id="results-grid"></div>
+    </div>
+  </main>
+</div>
+
+<!-- ══ OUTFIT CURATOR PAGE ══ -->
+<div class="page" id="page-outfit">
+  <main>
+    <div class="hero-text">Show me<em>the vibe.</em></div>
+
+    <div class="api-notice" id="api-notice">
+      <strong>⚡ Connect Claude AI</strong> — paste your Anthropic API key for real outfit curation + photo analysis. Free key at <strong>console.anthropic.com</strong>
+      <div class="api-key-row">
+        <input class="api-key-input" id="api-key-input" type="password" placeholder="sk-ant-..." />
+        <button class="api-key-save" onclick="saveApiKey()">Connect</button>
+      </div>
+    </div>
+
+    <div class="profile-banner" id="outfit-banner">
+      ✦ <span>Using your profile: </span>
+      <div class="banner-pills" id="outfit-banner-pills"></div>
+    </div>
+
+    <div class="search-area">
+      <span class="search-label">Describe your occasion — or drop a photo</span>
+      <div class="input-row">
+        <input class="keyword-input" id="occasion-input" type="text"
+          placeholder='"rooftop birthday, late summer" or "first date, autumn evening"'
+          onkeydown="if(event.key==='Enter') runOutfitSearch()" />
+        <button class="search-btn" id="outfit-btn" onclick="runOutfitSearch()">Build Outfit</button>
+      </div>
+      <div class="occasion-hints">
+        <span class="hint-chip" onclick="setHint('Casual rooftop birthday, late summer')">🎉 Rooftop party</span>
+        <span class="hint-chip" onclick="setHint('First date, cozy autumn evening')">🍂 Date night</span>
+        <span class="hint-chip" onclick="setHint('Weekend farmers market, early spring')">🌿 Farmers market</span>
+        <span class="hint-chip" onclick="setHint('Job interview at a creative studio')">💼 Job interview</span>
+        <span class="hint-chip" onclick="setHint('Beach day, midsummer')">🌊 Beach day</span>
+        <span class="hint-chip" onclick="setHint('Live music outdoor concert, summer night')">🎶 Concert</span>
+      </div>
+      <div class="divider-row">
+        <div class="divider-line"></div>
+        <div class="divider-text">✦ or drop a photo — AI reads the vibe</div>
+        <div class="divider-line"></div>
+      </div>
+      <div class="image-drop-zone" id="outfit-drop-zone"
+        ondragover="event.preventDefault();this.classList.add('drag-over')"
+        ondragleave="this.classList.remove('drag-over')"
+        ondrop="handleDrop(event)">
+        <input type="file" accept="image/*" id="outfit-image-input" onchange="handleOutfitImage(event)" />
+        <span class="drop-icon">📸</span>
+        <div class="drop-title">Upload Event Photo</div>
+        <div class="drop-subtitle"><strong>Venue, invite, or inspo</strong> — AI reads the scene automatically</div>
+      </div>
+      <div class="demo-images">
+        <span class="demo-label">Try a demo:</span>
+        <button class="demo-img-btn" onclick="runDemoScene('rooftop')">🌆 Rooftop</button>
+        <button class="demo-img-btn" onclick="runDemoScene('beach')">🏖 Beach</button>
+        <button class="demo-img-btn" onclick="runDemoScene('wedding')">💐 Wedding</button>
+        <button class="demo-img-btn" onclick="runDemoScene('concert')">🎸 Festival</button>
+        <button class="demo-img-btn" onclick="runDemoScene('date')">🕯 Date night</button>
+      </div>
+      <div class="image-analysis-panel" id="analysis-panel">
+        <div class="image-preview-row">
+          <div class="preview-thumb">
+            <img id="analysis-thumb" src="" alt="" />
+            <div class="change-photo" onclick="resetImageUpload()">Change</div>
+          </div>
+          <div class="analysis-content">
+            <div class="analyzing-state" id="analyzing-state">
+              <div class="analyzing-dots"><div class="a-dot"></div><div class="a-dot"></div><div class="a-dot"></div></div>
+              <div class="analyzing-label" id="analyzing-label">Reading the scene...</div>
+            </div>
+            <div class="analysis-result" id="analysis-result">
+              <div class="analysis-result-label">AI detected</div>
+              <div class="detected-tags" id="detected-tags"></div>
+              <div style="font-size:0.68rem;letter-spacing:0.12em;text-transform:uppercase;color:var(--dust);margin-bottom:0.4rem">Generated occasion</div>
+              <div class="generated-occasion" id="generated-occasion"></div>
+              <div class="analysis-actions">
+                <button class="use-occasion-btn" onclick="useDetectedOccasion()">Build This Outfit →</button>
+                <button class="edit-occasion-btn" onclick="toggleEditOccasion()">Edit</button>
+                <button class="remove-photo" onclick="resetImageUpload()">✕ Remove</button>
+              </div>
+              <div class="edit-occasion-field" id="edit-occasion-field">
+                <input class="edit-occasion-input" id="edit-occasion-input" type="text" />
+                <button class="confirm-edit-btn" onclick="confirmEditOccasion()">✓</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="loading-block" id="loading-outfit">
+      <div class="loading-dots"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
+      <div class="loading-text" id="loading-outfit-text">Building your outfit...</div>
+    </div>
+
+    <div id="outfit-section">
+      <div class="outfit-header">
+        <div class="outfit-title-area">
+          <div class="occasion-label" id="outfit-occasion-label"></div>
+          <div class="main-title">Your Outfit</div>
+        </div>
+      </div>
+      <div class="ai-reasoning" id="ai-reasoning"></div>
+      <div class="outfit-grid" id="outfit-grid"></div>
+      <div class="outfit-footer">
+        <div>
+          <div class="total-label">Estimated total (secondhand)</div>
+          <div class="total-price" id="total-price">$0</div>
+          <div class="total-vs" id="total-vs"></div>
+        </div>
+        <div class="outfit-actions">
+          <button class="action-btn" onclick="regenerateOutfit()">↻ New Outfit</button>
+          <button class="action-btn primary" onclick="searchAllOnEbay()">Search All on eBay →</button>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- ══ PROFILE PAGE ══ -->
+<div class="page" id="page-profile">
+  <main>
+    <div class="profile-page-header">
+      <div>
+        <div class="profile-subtitle">Personalizes every recommendation</div>
+        <div class="profile-page-title">My <span>Style</span> Profile</div>
+      </div>
+      <button class="save-profile-btn" onclick="saveProfile()">Save Profile</button>
+    </div>
+    <div class="completion-bar-wrap">
+      <div class="completion-label">Profile complete</div>
+      <div class="completion-track"><div class="completion-fill" id="completion-fill" style="width:0%"></div></div>
+      <div class="completion-pct" id="completion-pct">0%</div>
+    </div>
+    <div class="profile-grid">
+
+      <!-- Style Photos -->
+      <div class="style-photos-section">
+        <div class="section-label">📸 My Style Photos <span style="font-size:0.7rem;font-family:'DM Sans',sans-serif;font-weight:400;color:var(--dust);letter-spacing:0.05em;text-transform:none">— upload outfits you love, AI learns your aesthetic</span></div>
+        <div class="style-photos-grid" id="style-photos-grid">
+          <div class="style-photo-add">
+            <input type="file" accept="image/*" multiple onchange="addStylePhotos(event)" />
+            <div class="style-photo-add-icon">+</div>
+            <div class="style-photo-add-label">Add photos</div>
+          </div>
+        </div>
+        <div>
+          <button class="analyze-photos-btn" id="analyze-photos-btn" onclick="analyzeStylePhotos()" disabled>✦ Analyze My Style</button>
+          <span class="photo-count-label" id="photo-count-label">Add at least 1 photo to analyze</span>
+        </div>
+      </div>
+
+      <!-- Sizes -->
+      <div class="profile-section">
+        <div class="section-label">📐 My Sizes</div>
+        <div class="size-grid">
+          <div class="size-field"><label>Tops</label><select id="size-tops" onchange="updateCompletion()"><option value="">Select</option><option>XS</option><option>S</option><option>M</option><option>L</option><option>XL</option><option>XXL</option></select></div>
+          <div class="size-field"><label>Bottoms</label><input id="size-bottoms" type="text" placeholder='32"' onchange="updateCompletion()" /></div>
+          <div class="size-field"><label>Shoes (US)</label><input id="size-shoes" type="text" placeholder="8" onchange="updateCompletion()" /></div>
+          <div class="size-field"><label>Dresses</label><select id="size-dresses" onchange="updateCompletion()"><option value="">Select</option><option>XS</option><option>S</option><option>M</option><option>L</option><option>XL</option><option>0</option><option>2</option><option>4</option><option>6</option><option>8</option><option>10</option><option>12</option></select></div>
+          <div class="size-field"><label>Outerwear</label><select id="size-outerwear" onchange="updateCompletion()"><option value="">Select</option><option>XS</option><option>S</option><option>M</option><option>L</option><option>XL</option><option>XXL</option></select></div>
+          <div class="size-field"><label>Inseam</label><input id="size-inseam" type="text" placeholder='30"' onchange="updateCompletion()" /></div>
+        </div>
+      </div>
+
+      <!-- Aesthetic -->
+      <div class="profile-section">
+        <div class="section-label">✦ My Aesthetic</div>
+        <div style="font-size:0.72rem;color:var(--dust);margin-bottom:0.75rem">Pick up to 3</div>
+        <div class="aesthetic-grid" id="aesthetic-grid">
+          <div class="aesthetic-chip" onclick="toggleAesthetic(this)">Minimal</div>
+          <div class="aesthetic-chip" onclick="toggleAesthetic(this)">Vintage</div>
+          <div class="aesthetic-chip" onclick="toggleAesthetic(this)">Streetwear</div>
+          <div class="aesthetic-chip" onclick="toggleAesthetic(this)">Preppy</div>
+          <div class="aesthetic-chip" onclick="toggleAesthetic(this)">Bohemian</div>
+          <div class="aesthetic-chip" onclick="toggleAesthetic(this)">Classic</div>
+          <div class="aesthetic-chip" onclick="toggleAesthetic(this)">Athleisure</div>
+          <div class="aesthetic-chip" onclick="toggleAesthetic(this)">Dark Academia</div>
+          <div class="aesthetic-chip" onclick="toggleAesthetic(this)">Coastal</div>
+          <div class="aesthetic-chip" onclick="toggleAesthetic(this)">Business Casual</div>
+          <div class="aesthetic-chip" onclick="toggleAesthetic(this)">Cottagecore</div>
+          <div class="aesthetic-chip" onclick="toggleAesthetic(this)">Y2K</div>
+        </div>
+        <div class="aesthetic-limit" id="aesthetic-limit">0 / 3 selected</div>
+      </div>
+
+      <!-- Brands I Love -->
+      <div class="profile-section">
+        <div class="section-label">💚 Brands I Love</div>
+        <div class="brand-search-wrap">
+          <input class="brand-search-input" id="love-search" type="text" placeholder="Search or type a brand..." oninput="filterBrands('love')" onkeydown="if(event.key==='Enter') addBrandFromSearch('love')" onfocus="showDropdown('love')" />
+          <div class="brand-dropdown" id="love-dropdown"></div>
+        </div>
+        <div class="brand-tags" id="love-tags"></div>
+      </div>
+
+      <!-- Brands I Avoid -->
+      <div class="profile-section">
+        <div class="section-label">🚫 Brands I Avoid</div>
+        <div class="brand-search-wrap">
+          <input class="brand-search-input" id="avoid-search" type="text" placeholder="Search or type a brand..." oninput="filterBrands('avoid')" onkeydown="if(event.key==='Enter') addBrandFromSearch('avoid')" onfocus="showDropdown('avoid')" />
+          <div class="brand-dropdown" id="avoid-dropdown"></div>
+        </div>
+        <div class="brand-tags" id="avoid-tags"></div>
+      </div>
+
+    </div>
+  </main>
+</div>
+
+<!-- ══ STYLE DNA MODAL ══ -->
+<div class="modal-overlay" id="dna-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">✦ Your Style DNA</div>
+      <button class="modal-close" onclick="closeDnaModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="dna-section">
+        <div class="dna-label">AI Summary</div>
+        <div class="dna-summary-text" id="dna-summary"></div>
+      </div>
+      <div class="dna-section">
+        <div class="dna-label">Color Palette — click to remove</div>
+        <div class="dna-tags" id="dna-colors"></div>
+      </div>
+      <div class="dna-section">
+        <div class="dna-label">Silhouette & Fit — click to remove</div>
+        <div class="dna-tags" id="dna-fits"></div>
+      </div>
+      <div class="dna-section">
+        <div class="dna-label">Key Pieces — click to remove</div>
+        <div class="dna-tags" id="dna-pieces"></div>
+      </div>
+      <div class="dna-section">
+        <div class="dna-label">Detected Brands — click to remove</div>
+        <div class="dna-tags" id="dna-brands"></div>
+      </div>
+      <div class="modal-note">💡 Click any tag to remove it before approving. This gets saved to your profile and used in every outfit recommendation.</div>
+    </div>
+    <div class="modal-actions">
+      <button class="approve-btn" onclick="approveDna()">✓ Save to My Profile</button>
+      <button class="discard-btn" onclick="closeDnaModal()">Discard</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ── CONFIG ──
+const PROXY = 'https://thriftscan-proxy-production.up.railway.app';
+
+// ── STATE ──
+let profile = { sizes:{}, aesthetics:[], loveBrands:[], avoidBrands:[] };
+let ebayToken = null;
+let ebayTokenExpiry = 0;
+let currentOutfit = [];
+let detectedOccasion = '';
+let lastOccasionUsed = '';
+
+// ── EBAY CREDENTIALS ──
+function connectEbay() {
+  const clientId = document.getElementById('ebay-client-id').value.trim();
+  const clientSecret = document.getElementById('ebay-client-secret').value.trim();
+  if (!clientId || !clientSecret) { showToast('⚠ Enter both App ID and Cert ID'); return; }
+  localStorage.setItem('ts_ebay_id', clientId);
+  localStorage.setItem('ts_ebay_secret', clientSecret);
+  ebayToken = null;
+  updateEbayStatus(true, clientId);
+  document.getElementById('settings-body').classList.remove('open');
+  document.getElementById('settings-toggle').textContent = '▾ Configure';
+  showToast('✓ Credentials saved — connecting to eBay...');
+  getEbayToken().then(t => {
+    if (t) showToast('✓ eBay connected — live results ready!');
+    else showToast('⚠ Could not connect — check your credentials');
+  });
+}
+
+function disconnectEbay() {
+  localStorage.removeItem('ts_ebay_id');
+  localStorage.removeItem('ts_ebay_secret');
+  ebayToken = null; ebayTokenExpiry = 0;
+  document.getElementById('ebay-client-id').value = '';
+  document.getElementById('ebay-client-secret').value = '';
+  updateEbayStatus(false, '');
+  showToast('eBay disconnected');
+}
+
+function toggleSettings() {
+  const body = document.getElementById('settings-body');
+  const toggle = document.getElementById('settings-toggle');
+  body.classList.toggle('open');
+  toggle.textContent = body.classList.contains('open') ? '▴ Close' : '▾ Configure';
+}
+
+function updateEbayStatus(connected, appId) {
+  const dot = document.getElementById('status-dot');
+  const text = document.getElementById('status-text');
+  const bar = document.getElementById('ebay-connected-bar');
+  if (connected) {
+    dot.className = 'status-dot connected';
+    text.textContent = 'Connected';
+    bar.classList.add('show');
+    const short = appId.length > 28 ? appId.slice(0,28)+'...' : appId;
+    document.getElementById('ebay-app-id-display').textContent = short;
+  } else {
+    dot.className = 'status-dot';
+    text.textContent = 'Not connected';
+    bar.classList.remove('show');
+  }
+}
+
+// ── EBAY TOKEN via PROXY ──
+async function getEbayToken() {
+  if (ebayToken && Date.now() < ebayTokenExpiry - 60000) return ebayToken;
+  const clientId = localStorage.getItem('ts_ebay_id');
+  const clientSecret = localStorage.getItem('ts_ebay_secret');
+  if (!clientId || !clientSecret) return null;
+  try {
+    const res = await fetch(PROXY, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-ebay-client-id': clientId,
+        'x-ebay-client-secret': clientSecret,
+        'x-ebay-action': 'token'
+      }
+    });
+    if (!res.ok) { console.error('Token error', await res.text()); return null; }
+    const data = await res.json();
+    ebayToken = data.access_token;
+    ebayTokenExpiry = Date.now() + (data.expires_in * 1000);
+    return ebayToken;
+  } catch(e) {
+    console.error('Token fetch error:', e);
+    return null;
+  }
+}
+
+// ── EBAY SEARCH via PROXY ──
+async function searchEbay(query, opts = {}) {
+  const token = await getEbayToken();
+  if (!token) return null;
+  const clientId = localStorage.getItem('ts_ebay_id');
+  const clientSecret = localStorage.getItem('ts_ebay_secret');
+  try {
+    const res = await fetch(PROXY, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-ebay-client-id': clientId,
+        'x-ebay-client-secret': clientSecret,
+        'x-ebay-action': 'search',
+        'x-ebay-token': token,
+        'x-ebay-query': query,
+        'x-ebay-limit': String(opts.limit || 12),
+        'x-ebay-sort': opts.sort || 'BestMatch',
+        'x-ebay-condition': opts.condition || '',
+        'x-ebay-maxprice': opts.maxPrice || ''
+      }
+    });
+    if (!res.ok) {
+      if (res.status === 401) { ebayToken = null; return searchEbay(query, opts); }
+      throw new Error(`eBay error ${res.status}`);
+    }
+    const data = await res.json();
+    return data.itemSummaries || [];
+  } catch(e) {
+    console.error('Search error:', e);
+    return null;
+  }
+}
+
+// ── ITEM SEARCH PAGE ──
+async function runSearch() {
+  const keyword = document.getElementById('keyword-input').value.trim();
+  if (!keyword) {
+    document.getElementById('keyword-input').style.borderColor = 'var(--rust)';
+    setTimeout(() => document.getElementById('keyword-input').style.borderColor = '', 1500);
+    return;
+  }
+
+  document.getElementById('results-section').style.display = 'none';
+  document.getElementById('loading-search').classList.add('show');
+  document.getElementById('search-btn').disabled = true;
+
+  const condition = document.getElementById('filter-condition').value;
+  const sort = document.getElementById('filter-sort').value;
+  const maxPrice = document.getElementById('filter-price').value;
+  const hasEbay = !!localStorage.getItem('ts_ebay_id');
+
+  if (hasEbay) {
+    const msgs = ['Fetching token...', 'Searching eBay...', 'Loading listings...'];
+    let mi = 0;
+    const iv = setInterval(() => { if(mi<msgs.length) document.getElementById('loading-search-text').textContent=msgs[mi++]; }, 700);
+    const results = await searchEbay(keyword, { condition, sort, maxPrice, limit:16 });
+    clearInterval(iv);
+    document.getElementById('loading-search').classList.remove('show');
+    document.getElementById('search-btn').disabled = false;
+    if (results && results.length > 0) renderLiveResults(results, keyword);
+    else { renderDemoResults(keyword); showToast('No results — showing demo data'); }
+  } else {
+    setTimeout(() => {
+      document.getElementById('loading-search').classList.remove('show');
+      document.getElementById('search-btn').disabled = false;
+      renderDemoResults(keyword);
+      showToast('Connect eBay above for live results');
+    }, 1200);
+  }
+}
+
+function renderLiveResults(items, query) {
+  document.getElementById('results-title').textContent = query.length > 28 ? query.slice(0,28)+'…' : query;
+  document.getElementById('results-count').textContent = `${items.length} live listings`;
+  document.getElementById('results-source').textContent = '● Live from eBay via your proxy';
+  const grid = document.getElementById('results-grid');
+  grid.innerHTML = '';
+  items.forEach((item, i) => {
+    const price = item.price ? `$${parseFloat(item.price.value).toFixed(0)}` : 'N/A';
+    const imgUrl = item.image?.imageUrl || '';
+    const itemUrl = item.itemWebUrl || '#';
+    const condition = item.condition || '';
+    const shipping = item.shippingOptions?.[0]?.shippingCost?.value === '0.00' ? 'Free shipping' : item.shippingOptions?.[0]?.shippingCost ? `+$${item.shippingOptions[0].shippingCost.value} ship` : '';
+    const card = document.createElement('a');
+    card.className = 'result-card';
+    card.href = itemUrl; card.target = '_blank'; card.rel = 'noopener noreferrer';
+    card.style.animationDelay = `${i * 0.05}s`;
+    card.innerHTML = `
+      <div class="card-badge live">eBay Live</div>
+      <div class="card-img-wrap">
+        ${imgUrl ? `<img class="card-img" src="${imgUrl}" alt="${item.title}" loading="lazy" onerror="this.parentElement.innerHTML='<div class=\\'card-img-placeholder\\'>🛍️</div>'">` : `<div class="card-img-placeholder">🛍️</div>`}
+      </div>
+      <div class="card-body">
+        <div class="card-title">${item.title}</div>
+        <div class="card-price">${price}</div>
+        <div class="card-condition">${condition}${shipping ? ' · '+shipping : ''}</div>
+      </div>
+      <div class="card-cta">View on eBay ↗</div>`;
+    grid.appendChild(card);
+  });
+  document.getElementById('results-section').style.display = 'block';
+  document.getElementById('results-section').scrollIntoView({ behavior:'smooth', block:'start' });
+}
+
+const DEMO_ITEMS = [
+  {title:"Vintage Levi's 501 Jeans W32",price:"$34",condition:"Good",emoji:"👖"},
+  {title:"Levi Strauss Denim Jacket M",price:"$52",condition:"Like New",emoji:"🧥"},
+  {title:"Y2K Baggy Cargo Jeans",price:"$28",condition:"Fair",emoji:"👖"},
+  {title:"Nike Air Max 90 Size 10",price:"$89",condition:"Good",emoji:"👟"},
+  {title:"Champion Reverse Weave Hoodie",price:"$22",condition:"Good",emoji:"👕"},
+  {title:"Band Tee Vintage XL",price:"$40",condition:"Fair",emoji:"👕"},
+  {title:"Carhartt Work Jacket L",price:"$65",condition:"Good",emoji:"🧥"},
+  {title:"Windbreaker Vintage M",price:"$38",condition:"Like New",emoji:"🧥"},
+];
+
+function renderDemoResults(query) {
+  document.getElementById('results-title').textContent = query.length>28 ? query.slice(0,28)+'…' : query;
+  document.getElementById('results-count').textContent = `${DEMO_ITEMS.length} results`;
+  document.getElementById('results-source').textContent = '○ Demo — connect eBay for live results';
+  const grid = document.getElementById('results-grid');
+  grid.innerHTML = '';
+  [...DEMO_ITEMS].sort(()=>0.5-Math.random()).forEach((item,i) => {
+    const card = document.createElement('div');
+    card.className = 'result-card'; card.style.animationDelay = `${i*0.06}s`;
+    card.innerHTML = `<div class="card-badge demo">Demo</div><div class="card-img-wrap"><div class="card-img-placeholder">${item.emoji}</div></div><div class="card-body"><div class="card-title">${item.title}</div><div class="card-price">${item.price}</div><div class="card-condition">${item.condition}</div></div>`;
+    grid.appendChild(card);
+  });
+  document.getElementById('results-section').style.display = 'block';
+  document.getElementById('results-section').scrollIntoView({ behavior:'smooth', block:'start' });
+}
+
+// ── OUTFIT CURATOR ──
+function setHint(t) { document.getElementById('occasion-input').value = t; document.getElementById('occasion-input').focus(); }
+
+async function runOutfitSearch() {
+  const occasion = document.getElementById('occasion-input').value.trim();
+  if (!occasion) {
+    document.getElementById('occasion-input').style.borderColor = 'var(--rust)';
+    setTimeout(() => document.getElementById('occasion-input').style.borderColor = '', 1500);
+    return;
+  }
+  lastOccasionUsed = occasion;
+  document.getElementById('outfit-section').style.display = 'none';
+  document.getElementById('loading-outfit').classList.add('show');
+  document.getElementById('outfit-btn').disabled = true;
+
+  const msgs = ['Asking AI stylist...','Reading your style profile...','Pairing pieces...','Writing search terms...'];
+  let mi = 0;
+  const interval = setInterval(() => { if(mi<msgs.length) document.getElementById('loading-outfit-text').textContent=msgs[mi++]; }, 900);
+  try {
+    const apiKey = localStorage.getItem('ts_api_key') || '';
+    const outfit = apiKey ? await fetchAIOutfit(occasion, apiKey) : getDemoOutfit(occasion);
+    clearInterval(interval);
+    document.getElementById('loading-outfit').classList.remove('show');
+    document.getElementById('outfit-btn').disabled = false;
+    await renderOutfit(outfit, occasion);
+  } catch(e) {
+    clearInterval(interval);
+    document.getElementById('loading-outfit').classList.remove('show');
+    document.getElementById('outfit-btn').disabled = false;
+    await renderOutfit(getDemoOutfit(occasion), occasion);
+  }
+}
+
+async function fetchAIOutfit(occasion, apiKey) {
+  const saved = JSON.parse(localStorage.getItem('thriftscan_profile')||'{}');
+  const sizes = Object.entries(saved.sizes||{}).map(([k,v])=>`${k}: ${v}`).join(', ') || 'not specified';
+  const aesthetics = (saved.aesthetics||[]).join(', ') || 'not specified';
+  const loveBrands = (saved.loveBrands||[]).join(', ') || 'none';
+  const avoidBrands = (saved.avoidBrands||[]).join(', ') || 'none';
+  const dna = saved.styleDna ? `Style DNA: ${saved.styleDna.summary} Colors: ${saved.styleDna.colors?.join(', ')}. Fits: ${saved.styleDna.fits?.join(', ')}. Key pieces: ${saved.styleDna.pieces?.join(', ')}.` : '';
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method:'POST',
+    headers:{'Content-Type':'application/json','x-api-key':apiKey,'anthropic-version':'2023-06-01'},
+    body: JSON.stringify({
+      model:'claude-sonnet-4-20250514', max_tokens:1000,
+      messages:[{role:'user',content:`You are a personal stylist for secondhand shopping.
+Occasion: "${occasion}"
+Sizes: ${sizes} | Aesthetic: ${aesthetics} | Love: ${loveBrands} | Avoid: ${avoidBrands}
+${dna}
+Create 4-5 outfit pieces. Respond ONLY with JSON (no markdown):
+{"reasoning":"2-3 sentences","pieces":[{"category":"Top","emoji":"👕","description":"...","searchTerm":"3-5 word ebay query","why":"...","estimatedPrice":24,"retailPrice":80}]}
+Keep searchTerm short and specific. Categories: Top, Bottom, Shoes, Outerwear, Accessory, Dress, Bag`}]
+    })
+  });
+  if (!res.ok) throw new Error('API error');
+  const data = await res.json();
+  const text = data.content.map(b=>b.text||'').join('');
+  return JSON.parse(text.replace(/```json|```/g,'').trim());
+}
+
+function getDemoOutfit(occasion) {
+  return {
+    reasoning: `For "${occasion}", this outfit balances the vibe with secondhand findability. Each piece uses a focused eBay search term — click any piece to search live, or hit "Search All" below.`,
+    pieces:[
+      {category:'Top',emoji:'👕',description:'Relaxed linen button-down, natural or white',searchTerm:'linen button shirt relaxed',why:'Breathable and elevated for most social settings',estimatedPrice:24,retailPrice:75},
+      {category:'Bottom',emoji:'👖',description:'Straight-leg chinos, tan or olive',searchTerm:'straight chinos tan vintage',why:'Neutral base that pairs with everything',estimatedPrice:18,retailPrice:65},
+      {category:'Shoes',emoji:'👟',description:'Clean white leather sneakers',searchTerm:'white leather sneakers clean',why:'Versatile, comfortable, pulls the look together',estimatedPrice:35,retailPrice:120},
+      {category:'Outerwear',emoji:'🧥',description:'Unstructured blazer or light denim jacket',searchTerm:'unstructured blazer vintage',why:'Adds polish, layers when cool',estimatedPrice:32,retailPrice:110},
+      {category:'Accessory',emoji:'🕶️',description:'Tortoiseshell sunglasses',searchTerm:'tortoiseshell sunglasses vintage',why:'Easy to find under $15 secondhand',estimatedPrice:12,retailPrice:45}
+    ]
+  };
+}
+
+async function renderOutfit(outfit, occasion) {
+  currentOutfit = outfit.pieces;
+  document.getElementById('outfit-occasion-label').textContent = occasion;
+  document.getElementById('ai-reasoning').innerHTML = outfit.reasoning.replace(/aesthetic|secondhand|eBay|occasion/gi, m=>`<strong>${m}</strong>`);
+  const grid = document.getElementById('outfit-grid');
+  grid.innerHTML = '';
+  let total = 0, retailTotal = 0;
+  const hasEbay = !!localStorage.getItem('ts_ebay_id');
+
+  outfit.pieces.forEach((piece, i) => {
+    total += piece.estimatedPrice;
+    retailTotal += piece.retailPrice;
+    const ebayUrl = `https://www.ebay.com/sch/i.html?_nkw=${encodeURIComponent(piece.searchTerm)}&LH_ItemCondition=3000`;
+    const card = document.createElement('div');
+    card.className = 'outfit-piece'; card.style.animationDelay = `${i*0.08}s`; card.id = `piece-${i}`;
+    card.innerHTML = `
+      <span class="piece-category">${piece.category}</span>
+      <span class="piece-emoji">${piece.emoji}</span>
+      <div class="piece-body">
+        <div class="piece-search-term">"${piece.searchTerm}"</div>
+        <div class="piece-description">${piece.description}</div>
+        <div class="piece-why">${piece.why}</div>
+        <div class="piece-listings" id="listings-${i}">
+          <div class="listing-loading">${hasEbay ? 'Loading live listings...' : 'Connect eBay for live listings'}</div>
+        </div>
+      </div>
+      <a class="piece-ebay-link" href="${ebayUrl}" target="_blank" rel="noopener">
+        <span>Search all on eBay · ~$${piece.estimatedPrice}</span><span class="arrow">↗</span>
+      </a>
+      <button class="reshuffle-btn" onclick="swapPiece(${i},'${piece.category}')">↻ Swap this piece</button>`;
+    grid.appendChild(card);
+  });
+
+  document.getElementById('total-price').textContent = `$${total}`;
+  document.getElementById('total-vs').textContent = `~$${Math.round(retailTotal-total)} saved vs. buying new`;
+  document.getElementById('outfit-section').style.display = 'block';
+  document.getElementById('outfit-section').scrollIntoView({ behavior:'smooth', block:'start' });
+
+  // Fetch live listings per piece in parallel
+  if (hasEbay) {
+    outfit.pieces.forEach(async (piece, i) => {
+      const listings = await searchEbay(piece.searchTerm, { limit:3, sort:'BestMatch', condition:'3000' });
+      const container = document.getElementById(`listings-${i}`);
+      if (!container) return;
+      if (listings && listings.length > 0) {
+        container.innerHTML = listings.map(item => {
+          const price = item.price ? `$${parseFloat(item.price.value).toFixed(0)}` : '';
+          const img = item.image?.imageUrl || '';
+          const url = item.itemWebUrl || '#';
+          return `<a class="piece-listing-item" href="${url}" target="_blank" rel="noopener">
+            ${img ? `<img class="listing-thumb" src="${img}" alt="" loading="lazy" onerror="this.style.display='none'">` : `<div class="listing-thumb-placeholder">${piece.emoji}</div>`}
+            <div class="listing-info"><div class="listing-title">${item.title}</div><div class="listing-cond">${item.condition||''}</div></div>
+            <span class="listing-price">${price}</span>
+          </a>`;
+        }).join('');
+      } else {
+        container.innerHTML = `<div class="listing-loading">No results · <a href="https://www.ebay.com/sch/i.html?_nkw=${encodeURIComponent(piece.searchTerm)}" target="_blank" style="color:var(--rust)">try on eBay ↗</a></div>`;
+      }
+    });
+  }
+}
+
+function swapPiece(idx, cat) {
+  showToast(`↻ Finding a different ${cat}...`);
+  const card = document.getElementById(`piece-${idx}`);
+  if (card) { card.style.opacity='0.4'; setTimeout(()=>{ card.style.opacity='1'; showToast(`✓ ${cat} refreshed`); },1400); }
+}
+function regenerateOutfit() { if(lastOccasionUsed){ document.getElementById('occasion-input').value=lastOccasionUsed; runOutfitSearch(); } }
+function searchAllOnEbay() {
+  if (!currentOutfit.length) return;
+  showToast('Opening eBay for each piece...');
+  currentOutfit.forEach((piece,i) => setTimeout(()=>window.open(`https://www.ebay.com/sch/i.html?_nkw=${encodeURIComponent(piece.searchTerm)}&LH_ItemCondition=3000`,'_blank'), i*450));
+}
+
+// ── IMAGE ANALYSIS ──
+const DEMO_SCENES = {
+  rooftop:{tags:[{text:'Rooftop Party',type:'primary'},{text:'Late Summer',type:'season'},{text:'Elevated Casual',type:'vibe'},{text:'Evening',type:''}],occasion:'Casual rooftop birthday party, late summer evening'},
+  beach:{tags:[{text:'Beach Day',type:'primary'},{text:'Midsummer',type:'season'},{text:'Relaxed / Casual',type:'vibe'},{text:'Daytime',type:''}],occasion:'Beach day, midsummer — relaxed and sun-ready'},
+  wedding:{tags:[{text:'Garden Wedding',type:'primary'},{text:'Late Spring',type:'season'},{text:'Semi-Formal',type:'vibe'},{text:'Afternoon',type:''}],occasion:'Garden wedding guest, late spring — semi-formal and romantic'},
+  concert:{tags:[{text:'Music Festival',type:'primary'},{text:'Summer',type:'season'},{text:'Expressive',type:'vibe'},{text:'All Day',type:''}],occasion:'Outdoor music festival, summer — expressive, all-day comfort'},
+  date:{tags:[{text:'Dinner Date',type:'primary'},{text:'Autumn',type:'season'},{text:'Intimate / Polished',type:'vibe'},{text:'Evening',type:''}],occasion:'Dinner date at a nice restaurant, autumn evening'}
+};
+
+function handleDrop(e) { e.preventDefault(); document.getElementById('outfit-drop-zone').classList.remove('drag-over'); const f=e.dataTransfer.files[0]; if(f&&f.type.startsWith('image/')) processImageFile(f); }
+function handleOutfitImage(e) { const f=e.target.files[0]; if(f) processImageFile(f); }
+function processImageFile(file) {
+  const reader=new FileReader();
+  reader.onload=ev=>{
+    document.getElementById('analysis-thumb').src=ev.target.result;
+    document.getElementById('outfit-drop-zone').style.display='none';
+    document.getElementById('analysis-panel').classList.add('show');
+    document.getElementById('analyzing-state').classList.add('show');
+    document.getElementById('analysis-result').classList.remove('show');
+    const apiKey=localStorage.getItem('ts_api_key')||'';
+    if(apiKey) analyzeImageWithAI(ev.target.result,apiKey);
+    else { const k=Object.keys(DEMO_SCENES); setTimeout(()=>showAnalysisResult(DEMO_SCENES[k[Math.floor(Math.random()*k.length)]]),1800); }
+  };
+  reader.readAsDataURL(file);
+}
+async function analyzeImageWithAI(base64DataUrl,apiKey) {
+  const msgs=['Reading the scene...','Detecting season & vibe...','Identifying occasion...'];
+  let mi=0; const iv=setInterval(()=>{if(mi<msgs.length) document.getElementById('analyzing-label').textContent=msgs[mi++];},800);
+  try {
+    const b64=base64DataUrl.split(',')[1]; const mt=base64DataUrl.split(';')[0].split(':')[1];
+    const res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':apiKey,'anthropic-version':'2023-06-01'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:400,messages:[{role:'user',content:[{type:'image',source:{type:'base64',media_type:mt,data:b64}},{type:'text',text:'Analyze for outfit planning. Respond ONLY with JSON: {"tags":[{"text":"event","type":"primary"},{"text":"season","type":"season"},{"text":"vibe","type":"vibe"},{"text":"time","type":""}],"occasion":"one-line occasion"}'}]}]})});
+    clearInterval(iv);
+    if(!res.ok) throw new Error();
+    const data=await res.json();
+    showAnalysisResult(JSON.parse(data.content.map(b=>b.text||'').join('').replace(/```json|```/g,'').trim()));
+  } catch(e) { clearInterval(iv); const k=Object.keys(DEMO_SCENES); showAnalysisResult(DEMO_SCENES[k[Math.floor(Math.random()*k.length)]]); }
+}
+function runDemoScene(key) {
+  const emojis={rooftop:'🌆',beach:'🏖',wedding:'💐',concert:'🎸',date:'🕯'};
+  document.getElementById('analysis-thumb').src=`data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='150' height='150'><rect width='150' height='150' fill='%23EDE8DC'/><text x='75' y='90' text-anchor='middle' font-size='56'>${emojis[key]}</text></svg>`;
+  document.getElementById('outfit-drop-zone').style.display='none';
+  document.getElementById('analysis-panel').classList.add('show');
+  document.getElementById('analyzing-state').classList.add('show');
+  document.getElementById('analysis-result').classList.remove('show');
+  setTimeout(()=>showAnalysisResult(DEMO_SCENES[key]),1600);
+}
+function showAnalysisResult(result) {
+  detectedOccasion=result.occasion;
+  document.getElementById('analyzing-state').classList.remove('show');
+  document.getElementById('analysis-result').classList.add('show');
+  const tagsEl=document.getElementById('detected-tags'); tagsEl.innerHTML='';
+  result.tags.forEach((tag,i)=>{ const el=document.createElement('div'); el.className=`detected-tag ${tag.type}`; el.style.animationDelay=`${i*0.07}s`; el.textContent=tag.text; tagsEl.appendChild(el); });
+  document.getElementById('generated-occasion').textContent=result.occasion;
+  document.getElementById('edit-occasion-input').value=result.occasion;
+  document.getElementById('occasion-input').value=result.occasion;
+}
+function useDetectedOccasion() { document.getElementById('occasion-input').value=detectedOccasion; runOutfitSearch(); }
+function toggleEditOccasion() { document.getElementById('edit-occasion-field').classList.toggle('show'); }
+function confirmEditOccasion() {
+  const val=document.getElementById('edit-occasion-input').value.trim();
+  if(val){ detectedOccasion=val; document.getElementById('generated-occasion').textContent=val; document.getElementById('occasion-input').value=val; }
+  document.getElementById('edit-occasion-field').classList.remove('show');
+}
+function resetImageUpload() {
+  detectedOccasion='';
+  document.getElementById('analysis-panel').classList.remove('show');
+  document.getElementById('outfit-drop-zone').style.display='block';
+  document.getElementById('analyzing-state').classList.remove('show');
+  document.getElementById('analysis-result').classList.remove('show');
+  document.getElementById('outfit-image-input').value='';
+}
+
+// ── API KEY ──
+function saveApiKey() {
+  const key=document.getElementById('api-key-input').value.trim();
+  if(!key.startsWith('sk-')){ showToast('⚠ Key should start with sk-ant-...'); return; }
+  localStorage.setItem('ts_api_key',key);
+  document.getElementById('api-notice').style.display='none';
+  showToast('✓ Claude AI connected');
+}
+
+// ── NAV ──
+function showPage(page, btn) {
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('page-'+page).classList.add('active');
+  btn.classList.add('active');
+  if(page==='profile') loadProfileUI();
+  updateBanners();
+}
+
+// ── TOP 50 WOMEN'S BRANDS ──
+const TOP_BRANDS = [
+  'Anthropologie','Aritzia','ASOS','Banana Republic','BCBGeneration',
+  'Calvin Klein','Carhartt','Citizens of Humanity','Club Monaco','Coach',
+  'Cos','Eileen Fisher','Equipment','Frame','Free People',
+  'Gap','Good American','H&M','J.Crew','Kate Spade',
+  'Levi\'s','Lisa Says Gah','Lululemon','Madewell','Marc Jacobs',
+  'Mango','Michael Kors','Miu Miu','Nastygal','Nike',
+  'nordstrom','Only Hearts','Patagonia','Polo Ralph Lauren','Quay',
+  'Rag & Bone','Reformation','Revolve','Sandro','Shein',
+  'Skims','Staud','Stella McCartney','Theory','Tory Burch',
+  'Uniqlo','Vince','Vuori','Wildfox','Zara'
+];
+
+let stylePhotos = []; // array of {base64, thumb}
+let pendingDna = null;
+
+// ── BRAND DROPDOWN ──
+function showDropdown(type) {
+  filterBrands(type);
+}
+
+function filterBrands(type) {
+  const input = document.getElementById(`${type}-search`);
+  const dropdown = document.getElementById(`${type}-dropdown`);
+  const query = input.value.toLowerCase().trim();
+  const saved = type === 'love' ? profile.loveBrands : profile.avoidBrands;
+
+  const filtered = TOP_BRANDS.filter(b =>
+    b.toLowerCase().includes(query) && !saved.includes(b)
+  );
+
+  if (filtered.length === 0 && query.length === 0) {
+    dropdown.classList.remove('show');
+    return;
+  }
+
+  dropdown.innerHTML = filtered.length > 0
+    ? filtered.map(b => `<div class="brand-option" onclick="selectBrand('${type}','${b}')">${b}</div>`).join('')
+    : `<div class="brand-option no-results">Type to add "${input.value}"</div>`;
+
+  dropdown.classList.add('show');
+}
+
+function selectBrand(type, name) {
+  addBrandToProfile(type, name);
+  document.getElementById(`${type}-search`).value = '';
+  document.getElementById(`${type}-dropdown`).classList.remove('show');
+}
+
+function addBrandFromSearch(type) {
+  const input = document.getElementById(`${type}-search`);
+  const val = input.value.trim();
+  if (!val) return;
+  addBrandToProfile(type, val);
+  input.value = '';
+  document.getElementById(`${type}-dropdown`).classList.remove('show');
+}
+
+function addBrandToProfile(type, name) {
+  const arr = type === 'love' ? profile.loveBrands : profile.avoidBrands;
+  if (arr.includes(name)) return;
+  arr.push(name);
+  renderBrandTag(type, name);
+  updateCompletion();
+}
+
+// Close dropdowns when clicking outside
+document.addEventListener('click', e => {
+  if (!e.target.closest('.brand-search-wrap')) {
+    document.querySelectorAll('.brand-dropdown').forEach(d => d.classList.remove('show'));
+  }
+});
+
+// ── STYLE PHOTOS ──
+function addStylePhotos(event) {
+  const files = Array.from(event.target.files);
+  files.forEach(file => {
+    const reader = new FileReader();
+    reader.onload = ev => {
+      stylePhotos.push({ base64: ev.target.result });
+      renderStylePhotos();
+    };
+    reader.readAsDataURL(file);
+  });
+  event.target.value = '';
+}
+
+function renderStylePhotos() {
+  const grid = document.getElementById('style-photos-grid');
+  const btn = document.getElementById('analyze-photos-btn');
+  const label = document.getElementById('photo-count-label');
+
+  grid.innerHTML = '';
+  stylePhotos.forEach((photo, i) => {
+    const item = document.createElement('div');
+    item.className = 'style-photo-item';
+    item.innerHTML = `
+      <img src="${photo.base64}" alt="Style photo ${i+1}" />
+      <button class="style-photo-remove" onclick="removeStylePhoto(${i})">✕</button>`;
+    grid.appendChild(item);
+  });
+
+  // Add button always at end
+  const addBtn = document.createElement('div');
+  addBtn.className = 'style-photo-add';
+  addBtn.innerHTML = `<input type="file" accept="image/*" multiple onchange="addStylePhotos(event)" /><div class="style-photo-add-icon">+</div><div class="style-photo-add-label">Add photos</div>`;
+  grid.appendChild(addBtn);
+
+  btn.disabled = stylePhotos.length === 0;
+  label.textContent = stylePhotos.length === 0
+    ? 'Add at least 1 photo to analyze'
+    : `${stylePhotos.length} photo${stylePhotos.length > 1 ? 's' : ''} ready to analyze`;
+}
+
+function removeStylePhoto(idx) {
+  stylePhotos.splice(idx, 1);
+  renderStylePhotos();
+}
+
+async function analyzeStylePhotos() {
+  const apiKey = localStorage.getItem('ts_api_key');
+  if (!apiKey) {
+    showToast('⚠ Connect Claude AI first — add your API key in Outfit Curator');
+    return;
+  }
+  if (stylePhotos.length === 0) return;
+
+  const btn = document.getElementById('analyze-photos-btn');
+  btn.disabled = true;
+  btn.textContent = 'Analyzing...';
+
+  try {
+    // Build content array with all photos + prompt
+    const content = stylePhotos.map(p => ({
+      type: 'image',
+      source: { type: 'base64', media_type: p.base64.split(';')[0].split(':')[1], data: p.base64.split(',')[1] }
+    }));
+
+    content.push({
+      type: 'text',
+      text: `Analyze these ${stylePhotos.length} outfit photo(s) and identify the person's style DNA. Respond ONLY with JSON (no markdown):
+{
+  "summary": "2-3 sentence description of their overall style",
+  "colors": ["color1","color2","color3","color4","color5"],
+  "fits": ["silhouette/fit descriptor1","descriptor2","descriptor3"],
+  "pieces": ["key piece1","key piece2","key piece3","key piece4"],
+  "brands": ["brand1","brand2"],
+  "aesthetics": ["aesthetic1","aesthetic2"]
+}
+Be specific — e.g. colors like "warm cream", "olive green" not just "green". Fits like "relaxed straight leg" not just "casual".`
+    });
+
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
+      body: JSON.stringify({ model: 'claude-sonnet-4-20250514', max_tokens: 800, messages: [{ role: 'user', content }] })
+    });
+
+    if (!res.ok) throw new Error('API error');
+    const data = await res.json();
+    const text = data.content.map(b => b.text || '').join('');
+    pendingDna = JSON.parse(text.replace(/```json|```/g, '').trim());
+    showDnaModal(pendingDna);
+  } catch(e) {
+    showToast('⚠ Analysis failed — check your API key');
+    console.error(e);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '✦ Analyze My Style';
+  }
+}
+
+function showDnaModal(dna) {
+  document.getElementById('dna-summary').textContent = dna.summary;
+
+  const renderTags = (containerId, items) => {
+    const el = document.getElementById(containerId);
+    el.innerHTML = '';
+    (items || []).forEach((item, i) => {
+      const tag = document.createElement('div');
+      tag.className = 'dna-tag';
+      tag.style.animationDelay = `${i * 0.05}s`;
+      tag.textContent = item;
+      tag.onclick = () => { tag.style.display = 'none'; };
+      el.appendChild(tag);
+    });
+  };
+
+  renderTags('dna-colors', dna.colors);
+  renderTags('dna-fits', dna.fits);
+  renderTags('dna-pieces', dna.pieces);
+  renderTags('dna-brands', dna.brands);
+
+  document.getElementById('dna-modal').classList.add('show');
+}
+
+function closeDnaModal() {
+  document.getElementById('dna-modal').classList.remove('show');
+  pendingDna = null;
+}
+
+function approveDna() {
+  if (!pendingDna) return;
+
+  // Get remaining visible tags (user may have removed some)
+  const getVisibleTags = id => [...document.querySelectorAll(`#${id} .dna-tag`)]
+    .filter(t => t.style.display !== 'none')
+    .map(t => t.textContent);
+
+  // Merge into profile
+  const colors = getVisibleTags('dna-colors');
+  const fits = getVisibleTags('dna-fits');
+  const pieces = getVisibleTags('dna-pieces');
+  const brands = getVisibleTags('dna-brands');
+
+  // Add detected aesthetics to profile aesthetics
+  if (pendingDna.aesthetics) {
+    pendingDna.aesthetics.forEach(a => {
+      const chip = [...document.querySelectorAll('.aesthetic-chip')].find(c => c.textContent.toLowerCase() === a.toLowerCase());
+      if (chip && !chip.classList.contains('selected') && document.querySelectorAll('.aesthetic-chip.selected').length < 3) {
+        chip.classList.add('selected');
+      }
+    });
+    updateAestheticCount();
+  }
+
+  // Add detected brands to love brands
+  brands.forEach(b => { if (!profile.loveBrands.includes(b)) addBrandToProfile('love', b); });
+
+  // Save style DNA to profile
+  profile.styleDna = { summary: pendingDna.summary, colors, fits, pieces };
+  profile.styleDnaPhotos = stylePhotos.length;
+
+  collectProfile();
+  localStorage.setItem('thriftscan_profile', JSON.stringify(profile));
+  updateBanners();
+  closeDnaModal();
+  showToast('✓ Style DNA saved to your profile!');
+  updateCompletion();
+}
+
+// ── PROFILE ──
+function loadProfileUI() {
+  const saved = JSON.parse(localStorage.getItem('thriftscan_profile') || 'null');
+  if (!saved) return;
+  profile = saved;
+  ['tops','bottoms','shoes','dresses','outerwear','inseam'].forEach(f => {
+    const el = document.getElementById('size-' + f);
+    if (el && profile.sizes[f]) el.value = profile.sizes[f];
+  });
+  document.querySelectorAll('.aesthetic-chip').forEach(chip => {
+    if (profile.aesthetics.includes(chip.textContent)) chip.classList.add('selected');
+  });
+  updateAestheticCount();
+  document.getElementById('love-tags').innerHTML = '';
+  document.getElementById('avoid-tags').innerHTML = '';
+  profile.loveBrands.forEach(b => renderBrandTag('love', b));
+  profile.avoidBrands.forEach(b => renderBrandTag('avoid', b));
+  updateCompletion();
+
+  // Show style DNA badge if exists
+  if (profile.styleDna) {
+    const label = document.getElementById('photo-count-label');
+    if (label) label.textContent = `✓ Style DNA saved (${profile.styleDnaPhotos || 0} photos analyzed)`;
+  }
+}
+
+function collectProfile() {
+  profile.sizes = {};
+  ['tops','bottoms','shoes','dresses','outerwear','inseam'].forEach(f => {
+    const el = document.getElementById('size-' + f);
+    if (el && el.value) profile.sizes[f] = el.value;
+  });
+  profile.aesthetics = [...document.querySelectorAll('.aesthetic-chip.selected')].map(c => c.textContent);
+}
+
+function saveProfile() {
+  collectProfile();
+  localStorage.setItem('thriftscan_profile', JSON.stringify(profile));
+  const hasData = profile.aesthetics.length > 0 || Object.keys(profile.sizes).length > 0;
+  document.getElementById('profile-dot').style.display = hasData ? 'inline-block' : 'none';
+  updateBanners();
+  showToast('✓ Profile saved');
+}
+
+function updateBanners() {
+  const saved = JSON.parse(localStorage.getItem('thriftscan_profile') || 'null');
+  if (!saved) return;
+  const pills = [];
+  if (saved.aesthetics?.length) pills.push(...saved.aesthetics);
+  const sv = Object.values(saved.sizes || {}); if (sv.length) pills.push(`Size: ${sv.slice(0,2).join('/')}`);
+  if (saved.loveBrands?.length) pills.push(`♥ ${saved.loveBrands[0]}`);
+  if (saved.styleDna) pills.push('✦ Style DNA');
+  ['search','outfit'].forEach(id => {
+    const b = document.getElementById(`${id}-banner`), p = document.getElementById(`${id}-banner-pills`);
+    if (!b || !p) return;
+    p.innerHTML = '';
+    if (pills.length) {
+      b.classList.add('show');
+      pills.forEach(pill => { const e = document.createElement('span'); e.className = 'banner-pill'; e.textContent = pill; p.appendChild(e); });
+    } else b.classList.remove('show');
+  });
+}
+
+function updateCompletion() {
+  collectProfile();
+  let f = 0;
+  if (Object.keys(profile.sizes).length >= 2) f++;
+  if (profile.aesthetics.length >= 1) f++;
+  if (profile.loveBrands.length >= 1 || profile.avoidBrands.length >= 1) f++;
+  if (profile.styleDna) f++;
+  const pct = Math.round((f / 4) * 100);
+  document.getElementById('completion-fill').style.width = pct + '%';
+  document.getElementById('completion-pct').textContent = pct + '%';
+}
+
+function toggleAesthetic(el) {
+  const n = document.querySelectorAll('.aesthetic-chip.selected').length;
+  if (!el.classList.contains('selected') && n >= 3) return;
+  el.classList.toggle('selected');
+  updateAestheticCount();
+  updateCompletion();
+}
+
+function updateAestheticCount() {
+  document.getElementById('aesthetic-limit').textContent = `${document.querySelectorAll('.aesthetic-chip.selected').length} / 3 selected`;
+}
+
+function renderBrandTag(type, name) {
+  const c = document.getElementById(type + '-tags');
+  const t = document.createElement('div');
+  t.className = `brand-tag ${type}`;
+  t.innerHTML = `${name} <button onclick="removeBrand('${type}','${name}',this)">✕</button>`;
+  c.appendChild(t);
+}
+
+function removeBrand(type, name, btn) {
+  const arr = type === 'love' ? profile.loveBrands : profile.avoidBrands;
+  const i = arr.indexOf(name);
+  if (i > -1) arr.splice(i, 1);
+  btn.closest('.brand-tag').remove();
+  updateCompletion();
+}
+function showToast(msg) { const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),3500); }
+
+// ── INIT ──
+(function(){
+  const saved=JSON.parse(localStorage.getItem('thriftscan_profile')||'null');
+  if(saved){ const hasData=saved.aesthetics?.length>0||Object.keys(saved.sizes||{}).length>0; if(hasData){document.getElementById('profile-dot').style.display='inline-block'; updateBanners();} }
+  if(localStorage.getItem('ts_api_key')) document.getElementById('api-notice').style.display='none';
+  const ebayId=localStorage.getItem('ts_ebay_id');
+  if(ebayId){
+    document.getElementById('ebay-client-id').value=ebayId;
+    document.getElementById('ebay-client-secret').value=localStorage.getItem('ts_ebay_secret')||'';
+    updateEbayStatus(true,ebayId);
+    getEbayToken();
+  }
+})();
+</script>
+</body>
+</html>
